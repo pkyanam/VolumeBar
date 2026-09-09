@@ -10,4 +10,4 @@ verify:
 package: build
 	./Scripts/package.sh
 check: test build verify
-	bash -n Scripts/*.sh
+	for script in Scripts/*.sh; do bash -n "$$script"; done

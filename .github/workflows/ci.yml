@@ -32,7 +32,7 @@ jobs:
           test "$(uname -m)" = arm64
           xcodebuild -version
           swift --version
-          bash -n Scripts/*.sh
+          for script in Scripts/*.sh; do bash -n "$script"; done
       - name: Test DSP
         run: swift test -j 2
       - name: Build and verify app

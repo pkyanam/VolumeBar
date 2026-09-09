@@ -9,8 +9,10 @@ struct MixerView: View {
         VStack(spacing: 0) {
             header
             VStack(spacing: 16) {
-                if !onboardingComplete { onboardingCard }
                 masterCard
+                if !onboardingComplete {
+                    onboardingCard.frame(maxHeight: .infinity)
+                } else {
                 appsHeader
                 if model.apps.isEmpty {
                     emptyState("No apps yet", detail: "Open an app to set its volume.")
@@ -28,6 +30,7 @@ struct MixerView: View {
                     }
                     .frame(maxHeight: .infinity)
                     .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+                }
                 }
                 if let notice = model.notice {
                     HStack(alignment: .top, spacing: 8) {
@@ -49,14 +52,14 @@ struct MixerView: View {
     private var onboardingCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your sound, in three steps").font(.system(size: 13, weight: .semibold))
-            Text("1. Play audio in an app.\n2. Adjust its slider below.\n3. Allow System Audio Recording if macOS asks.")
+            Text("1. Play audio in an app.\n2. Open the mixer and adjust its app slider.\n3. Allow System Audio Recording if macOS asks.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
             Text("Audio stays on your Mac. Switch Mixer off anytime to restore normal playback.")
                 .font(.system(size: 10)).foregroundStyle(.secondary)
             HStack {
                 Button("Audio permission…") { model.openAudioPrivacy() }.buttonStyle(.link)
                 Spacer()
-                Button("Got it") { onboardingComplete = true }.buttonStyle(.borderedProminent).controlSize(.small)
+                Button("Open mixer") { onboardingComplete = true }.buttonStyle(.borderedProminent).controlSize(.small)
             }.font(.system(size: 11))
         }
         .padding(12)

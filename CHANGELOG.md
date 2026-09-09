@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- Request classic native control rendering on macOS 26 to avoid the extra Liquid Glass framework and surface caches in release builds. Apple ignores this compatibility key for SDK 27+ builds.
+
 ## 0.4.1
 
 - Release the entire popover and its window on close, including backing surfaces.

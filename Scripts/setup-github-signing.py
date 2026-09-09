@@ -6,6 +6,8 @@ import getpass
 import json
 from pathlib import Path
 import subprocess
+import secrets
+import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--repo', default='pkyanam/VolumeBar')
@@ -20,6 +22,21 @@ subprocess.run(['gh', 'repo', 'view', args.repo, '--json', 'nameWithOwner', '--j
 password = args.password_file.read_text().strip() if args.password_file else getpass.getpass('P12 export password: ')
 if not password or not args.p12.is_file() or not args.p8.is_file():
     raise SystemExit('Missing credential file or empty P12 password')
+# Catch wrong passwords, missing private keys, and incompatible OpenSSL P12 exports
+# before changing any GitHub configuration. The keychain is temporary and never made default.
+with tempfile.TemporaryDirectory(prefix='volumebar-keycheck-') as folder:
+    keychain = str(Path(folder) / 'check.keychain-db')
+    keychain_password = secrets.token_hex(32)
+    try:
+        subprocess.run(['security', 'create-keychain', '-p', keychain_password, keychain], check=True, capture_output=True)
+        imported = subprocess.run(['security', 'import', str(args.p12.resolve()), '-k', keychain, '-P', password, '-T', '/usr/bin/codesign'], capture_output=True)
+        if imported.returncode:
+            raise SystemExit('P12 cannot be imported by macOS Keychain. Check its password and the OpenSSL compatibility note in docs/signing.md.')
+        identity = subprocess.check_output(['security', 'find-identity', '-v', '-p', 'codesigning', keychain], text=True)
+        if 'Developer ID Application:' not in identity:
+            raise SystemExit('P12 must contain a valid Developer ID Application certificate and matching private key.')
+    finally:
+        subprocess.run(['security', 'delete-keychain', keychain], capture_output=True)
 # Disable publishing while replacing the credential set. Enable only after all six uploads succeed.
 subprocess.run(['gh', 'variable', 'set', 'SIGNING_ENABLED', '--repo', args.repo, '--body', 'false'], check=True)
 policy = {'deployment_branch_policy': {'protected_branches': False, 'custom_branch_policies': True}}

@@ -23,6 +23,9 @@ printf '%s' "$APPLE_API_KEY_P8" > "$SIGN_DIR/AuthKey.p8"
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN"
 security set-keychain-settings -lut 7200 "$SIGNING_KEYCHAIN"
 security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN"
+# codesign also resolves the private key through the user search list. This is
+# an ephemeral runner; keep its login keychain available for Apple trust roots.
+security list-keychains -d user -s "$SIGNING_KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
 security import "$SIGN_DIR/certificate.p12" -k "$SIGNING_KEYCHAIN" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN" >/dev/null
 export SIGNING_IDENTITY

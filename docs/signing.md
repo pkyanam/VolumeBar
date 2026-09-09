@@ -10,6 +10,8 @@ In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/re
 
 If using Keychain Access, select the Developer ID Application identity under **My Certificates**, expand it to confirm the private key exists, and export it as PKCS#12. Downloading a `.cer` alone does not include the private key.
 
+**OpenSSL 3 compatibility:** macOS Keychain can reject its default PKCS#12 encryption with a misleading “wrong password” error. Export using `-keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1`, a strong random export password, and a protected password file. These options affect the encrypted P12 container, not the app's code-signing algorithm. The setup script validates the P12 in a temporary keychain before uploading anything.
+
 Keep the P12 and its password in a secure backup outside your checkout. Do not revoke existing certificates used by other apps to make room without assessing the impact.
 
 ### 2. Create a notarization API key

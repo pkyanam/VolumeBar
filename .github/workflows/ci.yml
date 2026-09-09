@@ -33,7 +33,7 @@ jobs:
           xcodebuild -version
           swift --version
           for script in Scripts/*.sh; do bash -n "$script"; done
-      - name: Test DSP
+      - name: Run tests
         run: swift test -j 2
       - name: Build and verify app
         env:

@@ -11,7 +11,7 @@ Open `Package.swift` in Xcode or use `make install`. Local installs go into `~/A
 ## Layout
 
 ```text
-Sources/VolumeBar/    SwiftUI menu, AppKit lifecycle, audio routing, diagnostics
+Sources/VolumeBar/    AppKit panel and lifecycle, audio routing, diagnostics
 Sources/AudioDSP/     Allocation-free C render callback and atomic gain controls
 Tests/AudioDSPTests/  DSP correctness and buffer safety tests
 Resources/           Info.plist and application icon
@@ -59,3 +59,5 @@ Edit `version.env` and `CHANGELOG.md`. The bundler applies version metadata to a
 ## Before a pull request
 
 Run `make check`, explain changed behavior, and list verification performed. Keep credential material outside the checkout. The repository ignores signing files, local diagnostics, build output, and environment files.
+
+Resource regression checks and repeatable profiling: [Performance](performance.md).

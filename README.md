@@ -20,9 +20,9 @@ Release downloads are Developer ID signed and notarized by Apple. For the newest
 
 1. Play audio in an app, then move that app's slider in VolumeBar.
 2. If macOS asks, allow **System Audio Recording**. This permission lets VolumeBar adjust sound; it does not save recordings.
-3. If a slider says it is waiting for access, open **… → Audio recording permission…**, enable VolumeBar, then choose **Retry audio connections**. Restart VolumeBar if macOS requests it.
+3. If a slider says it is waiting for access, open **Options → Audio recording permission…**, enable VolumeBar, then choose **Retry audio connections**. Restart VolumeBar if macOS requests it.
 
-That's it. Levels are remembered. **… → Launch at login** is optional.
+That's it. Levels are remembered. **Options → Launch at login** is optional.
 
 <p align="center"><img src="docs/screenshot.png" width="360" alt="VolumeBar menu with a master volume slider, app search, individual app sliders, and a mixer bypass switch"></p>
 
@@ -36,6 +36,7 @@ That's it. Levels are remembered. **… → Launch at login** is optional.
 - **Set it and forget it.** App levels persist and apply when audio starts.
 - **Find anything.** Filter to Playing, search app names or process IDs, or show background processes from the menu.
 - **Instant bypass.** Switch **Mixer** off to restore normal app audio while keeping saved levels. Quitting also releases every app route.
+- **Low idle overhead.** The panel and app icons are released when closed. With no enabled custom volumes, device notifications replace periodic process scanning. See [resource measurements](docs/performance.md).
 - **Local audio only.** No microphone capture, saved audio, telemetry, or network requests.
 
 ## Devices

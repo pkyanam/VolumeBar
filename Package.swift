@@ -8,7 +8,7 @@ let package = Package(
     targets: [
         .target(name: "AudioDSP", publicHeadersPath: "include", linkerSettings: [.linkedFramework("CoreAudio")]),
         .executableTarget(name: "VolumeBar", dependencies: ["AudioDSP"], linkerSettings: [
-            .linkedFramework("AppKit"), .linkedFramework("SwiftUI"),
+            .linkedFramework("AppKit"),
             .linkedFramework("CoreAudio"), .linkedFramework("AVFoundation")
         ]),
         .testTarget(name: "AudioDSPTests", dependencies: ["AudioDSP"]),

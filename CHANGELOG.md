@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Replaced the retained SwiftUI panel with native AppKit controls and reusable table cells.
+- Create the panel only on demand; release its controls, subscriptions, and icons on close.
+- Stop process polling when closed with no enabled custom levels. Continue monitoring saved adjustments so they apply when audio starts.
+- Load app icons only for displayed rows as bounded 64-pixel bitmaps; discard the cache on close.
+- Cache process ownership metadata and prune it as processes exit; stop retaining app bundles.
+- Return freed heap pages after the panel closes, outside audio callbacks.
+- Add panel lifetime and polling-policy regression tests plus a read-only resource profiling script.
+
 ## 0.3.0
 
 - Volume-aware speaker menu bar icon, with mute/low/medium/high states and an output/percentage tooltip.

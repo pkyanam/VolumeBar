@@ -8,7 +8,7 @@ struct MixerApp: Identifiable, Equatable {
     }
     let id: String
     var name: String
-    var icon: NSImage?
+    var iconURL: URL?
     var clients: [AudioClient]
     var isBackground = false
     var running: Bool { clients.contains { $0.running } }
@@ -35,7 +35,14 @@ final class MixerModel: ObservableObject {
     @Published var errors: [String: String] = [:]
     @Published var notice: String?
     private var iconCache: [String: NSImage] = [:]
-    private var bundleCache: [URL: Bundle] = [:]
+    private struct ClientOwner {
+        let pid: pid_t
+        let id: String
+        let name: String
+        let url: URL?
+    }
+    private var ownerCache: [AudioObjectID: ClientOwner] = [:]
+    private(set) var panelVisible = false
     private var sessions: [String: ProcessMixer] = [:]
     private var previousLevels: [String: Float] = [:]
     private var timer: Timer?
@@ -46,8 +53,9 @@ final class MixerModel: ObservableObject {
     private var masterBeforeMute: Float = 0.5
     var isTesting = false
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, testing: Bool = false) {
         self.defaults = defaults
+        isTesting = testing
         favoriteOutputs = Set(defaults.stringArray(forKey: "FavoriteOutputs") ?? [])
         devices.onChange = { [weak self] in self?.refresh() }
         if let saved = defaults.dictionary(forKey: "AppVolumes") as? [String: NSNumber] {
@@ -55,18 +63,13 @@ final class MixerModel: ObservableObject {
         }
         enabled = defaults.object(forKey: "MixerEnabled") as? Bool ?? true
         refresh()
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
-        }
-        timer.tolerance = 0.25
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        updatePolling()
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.sleeping = true; self?.stopAll() }
+            MainActor.assumeIsolated { self?.sleeping = true; self?.stopAll(); self?.updatePolling() }
         })
         observers.append(center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.sleeping = false; self?.errors = [:]; self?.devices.refresh(); self?.refresh() }
+            MainActor.assumeIsolated { self?.sleeping = false; self?.errors = [:]; self?.devices.refresh(); self?.refresh(); self?.updatePolling() }
         })
     }
     var visibleApps: [MixerApp] {
@@ -86,6 +89,7 @@ final class MixerModel: ObservableObject {
         errors[id] = nil
         sessions[id]?.setGain(value)
         defaults.set(levels, forKey: "AppVolumes")
+        updatePolling()
         pending?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.reconcile() }
         pending = work
@@ -99,7 +103,9 @@ final class MixerModel: ObservableObject {
         enabled = value
         defaults.set(value, forKey: "MixerEnabled")
         errors = [:]
-        if value { reconcile() } else { stopAll() }
+        if value { refresh() } else { stopAll() }
+        updatePolling()
+        releaseIdleMetadata()
     }
     func restoreAll() {
         stopAll()
@@ -107,6 +113,8 @@ final class MixerModel: ObservableObject {
         previousLevels = [:]
         errors = [:]
         defaults.removeObject(forKey: "AppVolumes")
+        updatePolling()
+        releaseIdleMetadata()
     }
     func retry() { errors = [:]; notice = nil; refresh() }
     func setMaster(_ volume: Float) {
@@ -165,8 +173,10 @@ final class MixerModel: ObservableObject {
             let muted = output.muted
             if masterMuted != muted { masterMuted = muted }
         } else if canSetMaster { canSetMaster = false }
-        let discovered = discoverApps()
-        if apps != discovered { apps = discovered }
+        if needsAppDiscovery {
+            let discovered = discoverApps()
+            if apps != discovered { apps = discovered }
+        } else { releaseIdleMetadata() }
         reconcile()
         for (id, session) in sessions {
             do { try session.activateWhenReady() }
@@ -222,44 +232,83 @@ final class MixerModel: ObservableObject {
         observers = []
         stopAll()
     }
-    private func cachedIcon(_ id: String, app: NSRunningApplication?, url: URL?) -> NSImage? {
-        if let icon = iconCache[id] { return icon }
-        let icon = url.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? app?.icon
-        iconCache[id] = icon
-        return icon
+    private var needsAppDiscovery: Bool {
+        ResourcePolicy.needsPolling(panelVisible: panelVisible, enabled: enabled, levels: levels, sleeping: sleeping, testing: isTesting)
+    }
+    func setPanelVisible(_ visible: Bool) {
+        panelVisible = visible
+        if visible { refresh() }
+        else { iconCache.removeAll(keepingCapacity: false); releaseIdleMetadata() }
+        updatePolling()
+    }
+    private func updatePolling() {
+        if !needsAppDiscovery { timer?.invalidate(); timer = nil; return }
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { autoreleasepool { self?.refresh() } }
+        }
+        timer.tolerance = 0.25
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+    private func releaseIdleMetadata() {
+        guard !panelVisible, !needsAppDiscovery else { return }
+        if !apps.isEmpty { apps = [] }
+        ownerCache.removeAll(keepingCapacity: false)
+        iconCache.removeAll(keepingCapacity: false)
+    }
+    // Only visible table cells request icons. Keep bounded, flattened 64px bitmaps,
+    // not the original multi-resolution icon representations or bundle objects.
+    func icon(for app: MixerApp) -> NSImage? {
+        guard panelVisible, let url = app.iconURL else { return nil }
+        if let cached = iconCache[app.id] { return cached }
+        return autoreleasepool {
+            guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 64, pixelsHigh: 64,
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+                let context = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = context
+            NSWorkspace.shared.icon(forFile: url.path).draw(in: NSRect(x: 0, y: 0, width: 64, height: 64))
+            NSGraphicsContext.restoreGraphicsState()
+            let image = NSImage(size: NSSize(width: 32, height: 32))
+            image.addRepresentation(rep)
+            if iconCache.count >= 32 { iconCache.removeAll(keepingCapacity: true) }
+            iconCache[app.id] = image
+            return image
+        }
     }
     private func discoverApps() -> [MixerApp] {
         var groups: [String: MixerApp] = [:]
-        let runningApps = NSWorkspace.shared.runningApplications
-        for app in runningApps where app.activationPolicy == .regular && app.processIdentifier != getpid() {
-            let id = app.bundleIdentifier ?? "pid:\(app.processIdentifier)"
-            groups[id] = MixerApp(id: id, name: app.localizedName ?? "App \(app.processIdentifier)", icon: cachedIcon(id, app: app, url: app.bundleURL), clients: [])
-        }
-        for client in AudioClient.all() {
-            let runningApp = NSRunningApplication(processIdentifier: client.pid)
-            var pathBuffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
-            let length = proc_pidpath(client.pid, &pathBuffer, UInt32(pathBuffer.count))
-            let path = length > 0 ? String(cString: pathBuffer) : ""
-            var ownerURL: URL?
-            if let appRange = path.range(of: ".app/") {
-                ownerURL = URL(fileURLWithPath: String(path[..<appRange.lowerBound]) + ".app")
+        if panelVisible {
+            for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app.processIdentifier != getpid() {
+                let id = app.bundleIdentifier ?? "pid:\(app.processIdentifier)"
+                groups[id] = MixerApp(id: id, name: app.localizedName ?? "App \(app.processIdentifier)", iconURL: app.bundleURL, clients: [])
             }
-            let ownerBundle = ownerURL.flatMap { url -> Bundle? in
-                if let cached = bundleCache[url] { return cached }
-                let bundle = Bundle(url: url)
-                bundleCache[url] = bundle
-                return bundle
-            }
-            let id = ownerBundle?.bundleIdentifier ?? runningApp?.bundleIdentifier ?? (client.bundleID.isEmpty ? "pid:\(client.pid)" : client.bundleID)
-            if groups[id] == nil {
-                let name = ownerBundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? ownerBundle?.object(forInfoDictionaryKey: "CFBundleName") as? String ?? runningApp?.localizedName ?? (path.isEmpty ? client.bundleID : URL(fileURLWithPath: path).lastPathComponent)
-                groups[id] = MixerApp(id: id, name: name.isEmpty ? "Process \(client.pid)" : name, icon: cachedIcon(id, app: runningApp, url: ownerURL), clients: [], isBackground: ownerURL == nil)
-            }
-            groups[id]?.clients.append(client)
         }
-        return groups.values.sorted {
-            // Stable alphabetical rows: sliders must not move under the pointer when playback starts.
-            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        let clients = AudioClient.all()
+        let liveIDs = Set(clients.map(\.id))
+        ownerCache = ownerCache.filter { liveIDs.contains($0.key) }
+        for client in clients {
+            let owner: ClientOwner
+            if let cached = ownerCache[client.id], cached.pid == client.pid { owner = cached }
+            else {
+                let runningApp = NSRunningApplication(processIdentifier: client.pid)
+                var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+                let length = proc_pidpath(client.pid, &buffer, UInt32(buffer.count))
+                let path = length > 0 ? String(cString: buffer) : ""
+                let url = path.range(of: ".app/").map { URL(fileURLWithPath: String(path[..<$0.lowerBound]) + ".app") }
+                let bundle = url.flatMap(Bundle.init(url:))
+                let id = bundle?.bundleIdentifier ?? runningApp?.bundleIdentifier ?? (client.bundleID.isEmpty ? "pid:\(client.pid)" : client.bundleID)
+                let name = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String ?? runningApp?.localizedName ?? (path.isEmpty ? client.bundleID : URL(fileURLWithPath: path).lastPathComponent)
+                owner = ClientOwner(pid: client.pid, id: id, name: name.isEmpty ? "Process \(client.pid)" : name, url: url)
+                ownerCache[client.id] = owner
+            }
+            if groups[owner.id] == nil {
+                groups[owner.id] = MixerApp(id: owner.id, name: owner.name, iconURL: owner.url, clients: [], isBackground: owner.url == nil)
+            }
+            groups[owner.id]?.clients.append(client)
         }
+        return groups.values.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }

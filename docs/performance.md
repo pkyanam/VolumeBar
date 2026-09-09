@@ -11,19 +11,15 @@ VolumeBar 0.4 replaces the retained SwiftUI panel with an on-demand AppKit panel
 
 Icons are flattened to 64×64 RGBA bitmaps. The model keeps at most 32 (about 512 KiB of pixel data) and drops the entire cache on close. Ownership metadata is pruned as processes exit. One coalesced, off-main-thread cleanup after closing asks malloc to return unused pages; it is skipped during active mixing. There are no machine-wide memory purges, background helpers, or automatic app restarts.
 
-Version 0.4.1 also releases the entire popover/window and uses opaque content and simpler native control styles. The 0.4.0 CI binary retained more UI/framework memory than the local development binary (about 98 MiB RSS / 38 MiB footprint after use), which prompted this follow-up. Build-toolchain differences matter; release-binary measurements should take precedence over local development results.
+Version 0.4.1 also releases the entire popover/window and uses opaque content and simpler native control styles. Version 0.4.2 requests classic native rendering on macOS 26 using Apple's [documented compatibility setting](https://developer.apple.com/documentation/bundleresources/information-property-list/uidesignrequirescompatibility). Apple ignores this setting in builds linked against SDK 27 or later; it is not a permanent replacement for lightweight UI design.
 
 ## Measurements
 
-Development measurements on the same Mac, macOS 26.6.2, September 9, 2026:
+Measure the actual signed release. Local builds can select different AppKit rendering behavior: our development executable declared SDK 14.4, while CI declares SDK 26.2. This substantially affected the retained framework and rendering caches on macOS 26.6.2.
 
-| State | RSS | Physical footprint |
-| --- | ---: | ---: |
-| 0.3.0, after using and closing the panel | 117 MiB | 41 MiB |
-| 0.4.0, menu-bar launch before opening the panel | 42–44 MiB | 11 MiB |
-| 0.4.0, after using and closing the panel | 83 MiB | 27 MiB |
+On the same Mac on September 9, 2026, 0.3.0 measured about 117 MiB RSS / 41 MiB physical footprint after panel use. The 0.4.1 signed release launched at 44 MiB RSS / 11 MiB footprint, but retained about 99 MiB RSS / 43 MiB footprint after use. That small RSS improvement and higher footprint prompted the rendering change in 0.4.2. See the [0.4.2 release notes](https://github.com/pkyanam/VolumeBar/releases/tag/v0.4.2) for measurements of its signed binary.
 
-The final closed-panel 0.4 development sample used 0.04 CPU seconds over 30 elapsed seconds (about 0.13% of one core); a prior 0.3 sample used about 1.9% of one core. These are observations on one machine, not universal limits. UI history, other system activity, macOS version, and active mixing affect results.
+Closed-panel 0.4.1 samples used 0–0.01 CPU seconds over 30 elapsed seconds (0–0.03% of one core); a prior 0.3 sample used about 1.9% of one core. These are observations on one machine, not universal limits. UI history, other system activity, macOS version, and active mixing affect results.
 
 RSS includes resident shared framework mappings, so it is **not** the same as memory uniquely charged to this app. Physical footprint is the more useful measure of its memory-pressure cost. Both are reported to keep comparisons honest. The panel's first use loads AppKit/framework caches that macOS can retain; closing the UI does not return RSS to its cold-launch value. See Apple's [memory-footprint guidance](https://developer.apple.com/library/archive/technotes/tn2434/_index.html).
 

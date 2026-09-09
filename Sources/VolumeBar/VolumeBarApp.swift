@@ -21,7 +21,7 @@ struct VolumeBarMain {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var item: NSStatusItem!
-    private let popover = NSPopover()
+    private var popover: NSPopover?
     private var model: MixerModel!
     private var reclaimWork: DispatchWorkItem?
     private var lastVolumeLabel: String?
@@ -42,9 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .sink { [weak self] values in
                 self?.updateVolumeIcon(volume: values.0, muted: values.1, output: values.2, adjustable: values.3)
             }
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 390, height: 630)
-        popover.delegate = self
         for sig in [SIGTERM, SIGINT] {
             signal(sig, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
@@ -82,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             item.menu = menu
             item.button?.performClick(nil)
             item.menu = nil
-        } else if popover.isShown { popover.performClose(nil) }
+        } else if popover?.isShown == true { popover?.performClose(nil) }
         else { showPopover() }
     }
     @objc private func openMixer() { showPopover() }
@@ -92,19 +89,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         guard let button = item.button else { return }
         reclaimWork?.cancel(); reclaimWork = nil
         model.setPanelVisible(true)
-        if popover.contentViewController == nil { popover.contentViewController = MixerPanelController(model: model) }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        let panel = popover?.isShown == true ? popover! : NSPopover()
+        panel.animates = false
+        panel.behavior = .transient
+        panel.contentSize = NSSize(width: 390, height: 630)
+        panel.delegate = self
+        if panel.contentViewController == nil { panel.contentViewController = MixerPanelController(model: model) }
+        popover = panel
+        panel.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate(ignoringOtherApps: true)
-        popover.contentViewController?.view.window?.makeKey()
+        panel.contentViewController?.view.window?.makeKey()
     }
     func popoverDidClose(_ notification: Notification) {
         // Tear down subscriptions, table cells, image references and the whole panel.
-        popover.contentViewController = nil
+        guard let panel = notification.object as? NSPopover, panel === popover else { return }
+        panel.contentViewController = nil
+        panel.delegate = nil
+        popover = nil
         model.setPanelVisible(false)
         // After autoreleased panel objects drain, return unused malloc pages to the OS.
         // Coalesce rapid reopen/close actions; never do this on the realtime callback.
         let work = DispatchWorkItem { [weak self] in
-            guard let self, !self.popover.isShown, self.model.activeIDs.isEmpty else { return }
+            guard let self, self.popover?.isShown != true, self.model.activeIDs.isEmpty else { return }
             DispatchQueue.global(qos: .utility).async { _ = malloc_zone_pressure_relief(nil, 0) }
         }
         reclaimWork = work

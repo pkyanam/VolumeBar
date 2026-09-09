@@ -11,6 +11,8 @@ VolumeBar 0.4 replaces the retained SwiftUI panel with an on-demand AppKit panel
 
 Icons are flattened to 64×64 RGBA bitmaps. The model keeps at most 32 (about 512 KiB of pixel data) and drops the entire cache on close. Ownership metadata is pruned as processes exit. One coalesced, off-main-thread cleanup after closing asks malloc to return unused pages; it is skipped during active mixing. There are no machine-wide memory purges, background helpers, or automatic app restarts.
 
+Version 0.4.1 also releases the entire popover/window and uses opaque content and simpler native control styles. The 0.4.0 CI binary retained more UI/framework memory than the local development binary (about 98 MiB RSS / 38 MiB footprint after use), which prompted this follow-up. Build-toolchain differences matter; release-binary measurements should take precedence over local development results.
+
 ## Measurements
 
 Development measurements on the same Mac, macOS 26.6.2, September 9, 2026:

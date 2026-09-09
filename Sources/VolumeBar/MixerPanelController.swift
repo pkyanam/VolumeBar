@@ -4,8 +4,10 @@ import ServiceManagement
 
 private let mixerAccent = NSColor(calibratedRed: 0.12, green: 0.68, blue: 0.55, alpha: 1)
 
-private final class PanelSurface: NSVisualEffectView {
+private final class PanelSurface: NSView {
     override var isFlipped: Bool { true }
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() { layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
 }
 private final class ActionButton: NSButton {
     var perform: (() -> Void)?
@@ -14,7 +16,7 @@ private final class ActionButton: NSButton {
         self.title = title
         perform = action
         target = self; self.action = #selector(run)
-        bezelStyle = .rounded; font = .systemFont(ofSize: 11)
+        bezelStyle = .smallSquare; controlSize = .small; font = .systemFont(ofSize: 11)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     @objc private func run() { perform?() }
@@ -88,7 +90,7 @@ final class MixerPanelController: NSViewController, NSTableViewDataSource, NSTab
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func loadView() {
         let root = PanelSurface(frame: NSRect(x: 0, y: 0, width: 390, height: 630))
-        root.material = .popover; root.blendingMode = .behindWindow; root.state = .active
+        root.wantsLayer = true
         view = root
         let logo = NSImageView(image: symbol("speaker.wave.2.fill") ?? NSImage())
         logo.contentTintColor = mixerAccent
@@ -113,11 +115,13 @@ final class MixerPanelController: NSViewController, NSTableViewDataSource, NSTab
         master.setAccessibilityLabel("Master volume")
         master.perform = { [weak model] in model?.setMaster($0) }
         place(master, 70, 144, 281, 25)
+        section.segmentStyle = .texturedSquare
         section.selectedSegment = 0; section.target = self; section.action = #selector(changeSection)
         place(section, 18, 205, 354, 26)
         search.placeholderString = "Find an app or process"; search.delegate = self
         search.stringValue = model.search; search.setAccessibilityLabel("Find an app or process")
         place(search, 18, 247, 354, 27)
+        filter.segmentStyle = .texturedSquare
         filter.selectedSegment = model.onlyPlaying ? 1 : 0; filter.target = self; filter.action = #selector(changeFilter)
         place(filter, 18, 283, 230, 24)
         count.alignment = .right

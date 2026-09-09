@@ -26,7 +26,7 @@ The menu bar observes published master state and only redraws when its displayed
 
 ## Resource lifecycle (0.4)
 
-The menu bar owns the audio model, but constructs `MixerPanelController` only when opening the popover. The panel uses AppKit controls and a reusable `NSTableView`, with coalesced model updates. Closing drops the content controller and all UI subscriptions. Tests create and release loaded panels repeatedly to detect retention cycles.
+The menu bar owns the audio model, but constructs `MixerPanelController` only when opening the popover. The panel uses AppKit controls and a reusable `NSTableView`, with coalesced model updates. Closing drops the content controller and all UI subscriptions. Starting in 0.4.1, the whole popover and window are released too; opaque content and nonanimated presentation avoid extra blur/transition rendering. Tests create and release loaded panels repeatedly to detect retention cycles.
 
 `ResourcePolicy` enables the one-second app-discovery timer only while the panel is open or enabled custom volumes exist. A muted app still counts as a custom volume. Bypass, sleep, and isolated diagnostic mode suspend unnecessary work. Output/master notifications remain active even without polling. Saved custom volumes continue to be applied to newly playing clients while the panel is closed.
 

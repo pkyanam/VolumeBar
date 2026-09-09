@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Release the entire popover and its window on close, including backing surfaces.
+- Use an opaque AppKit panel and simpler control styles to reduce rendering overhead.
+
 ## 0.4.0
 
 - Replaced the retained SwiftUI panel with native AppKit controls and reusable table cells.

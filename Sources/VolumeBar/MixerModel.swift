@@ -18,6 +18,9 @@ struct MixerApp: Identifiable, Equatable {
 
 @MainActor
 final class MixerModel: ObservableObject {
+    let devices = AudioDeviceCatalog()
+    @Published var favoriteOutputs: Set<String> = []
+    private var router = AudioDeviceRouter()
     @Published var apps: [MixerApp] = []
     @Published var output: OutputDevice?
     @Published var masterVolume: Float = 1
@@ -45,6 +48,8 @@ final class MixerModel: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        favoriteOutputs = Set(defaults.stringArray(forKey: "FavoriteOutputs") ?? [])
+        devices.onChange = { [weak self] in self?.refresh() }
         if let saved = defaults.dictionary(forKey: "AppVolumes") as? [String: NSNumber] {
             levels = saved.mapValues { min(1, max(0, $0.floatValue)) }
         }
@@ -61,7 +66,7 @@ final class MixerModel: ObservableObject {
             MainActor.assumeIsolated { self?.sleeping = true; self?.stopAll() }
         })
         observers.append(center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.sleeping = false; self?.errors = [:]; self?.refresh() }
+            MainActor.assumeIsolated { self?.sleeping = false; self?.errors = [:]; self?.devices.refresh(); self?.refresh() }
         })
     }
     var visibleApps: [MixerApp] {
@@ -123,6 +128,21 @@ final class MixerModel: ObservableObject {
                 masterBeforeMute = masterVolume; setMaster(0)
             } else { setMaster(masterBeforeMute) }
         } catch { notice = error.localizedDescription }
+    }
+    func toggleFavorite(_ device: AudioEndpoint) {
+        if favoriteOutputs.contains(device.uid) { favoriteOutputs.remove(device.uid) }
+        else { favoriteOutputs.insert(device.uid) }
+        defaults.set(favoriteOutputs.sorted(), forKey: "FavoriteOutputs")
+    }
+    func selectDevice(_ device: AudioEndpoint, direction: AudioDirection) {
+        guard !isTesting else { return }
+        do {
+            try router.select(device, direction: direction) { self.stopAll() }
+            errors = [:]
+            notice = nil
+        } catch { notice = error.localizedDescription }
+        devices.refresh()
+        refresh()
     }
     func openAudioPrivacy() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
@@ -197,6 +217,7 @@ final class MixerModel: ObservableObject {
     }
     func shutdown() {
         timer?.invalidate(); timer = nil
+        devices.stop()
         for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         observers = []
         stopAll()

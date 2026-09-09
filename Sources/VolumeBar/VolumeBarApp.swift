@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 @main
 struct VolumeBarMain {
@@ -23,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var item: NSStatusItem!
     private let popover = NSPopover()
     private var model: MixerModel!
+    private var lastVolumeLabel: String?
+    private var volumeObservation: AnyCancellable?
     private var signalSources: [DispatchSourceSignal] = []
     func applicationDidFinishLaunching(_ notification: Notification) {
         let testing = CommandLine.arguments.contains("--self-test")
@@ -30,14 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if testing { model.isTesting = true; model.stopAll() }
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "VolumeBar")
-            image?.isTemplate = true
-            button.image = image
             button.toolTip = "VolumeBar — app volume mixer"
             button.target = self
             button.action = #selector(togglePopover)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+        volumeObservation = Publishers.CombineLatest4(model.$masterVolume, model.$masterMuted, model.$output, model.$canSetMaster)
+            .sink { [weak self] values in
+                self?.updateVolumeIcon(volume: values.0, muted: values.1, output: values.2, adjustable: values.3)
+            }
         popover.behavior = .transient
         popover.contentSize = NSSize(width: 390, height: 630)
         popover.contentViewController = NSHostingController(rootView: MixerView(model: model))
@@ -54,6 +58,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.set(true, forKey: "HasLaunched")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.showPopover() }
         }
+    }
+    private func updateVolumeIcon(volume: Float, muted: Bool, output: OutputDevice?, adjustable: Bool) {
+        let indicator = VolumeIndicator(volume: volume, muted: muted, available: output != nil, adjustable: adjustable)
+        let label = "VolumeBar — \(indicator.description)\(output.map { " · \($0.name)" } ?? "")"
+        guard label != lastVolumeLabel, let button = item.button else { return }
+        lastVolumeLabel = label
+        let image = NSImage(systemSymbolName: indicator.symbol, accessibilityDescription: label)
+            ?? NSImage(systemSymbolName: "speaker.fill", accessibilityDescription: label)
+        image?.isTemplate = true
+        button.image = image
+        button.toolTip = label
+        button.setAccessibilityLabel(label)
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showPopover(); return true }
     @objc private func togglePopover() {

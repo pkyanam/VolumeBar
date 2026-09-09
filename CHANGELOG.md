@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Volume-aware speaker menu bar icon, with mute/low/medium/high states and an output/percentage tooltip.
+- Connected output picker with persistent favorites, transport icons, sample rate, and channel details.
+- Independent system microphone selection and a Mac-microphone shortcut for Bluetooth output.
+- Notification-driven device discovery with debounced updates and explicit listener cleanup.
+- Revalidate device identities before switching, release mixer routes before changes, and preserve destination volume.
+- Device routing and icon tests, including stale/reused IDs, no-op selection, and write failures.
+
 ## 0.2.0
 
 - Apple Silicon release builds, with optional universal builds for Intel Macs.

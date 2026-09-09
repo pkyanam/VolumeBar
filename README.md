@@ -12,7 +12,7 @@
 
 1. **[Download VolumeBar](https://github.com/pkyanam/VolumeBar/releases/latest/download/VolumeBar-arm64.dmg).**
 2. Open the DMG and drag **VolumeBar** into **Applications**.
-3. Open VolumeBar. Click the **three sliders** icon in your menu bar.
+3. Open VolumeBar. Click the **speaker** icon in your menu bar.
 
 Release downloads are Developer ID signed and notarized by Apple. For the newest development snapshot, see [all releases](https://github.com/pkyanam/VolumeBar/releases). CI artifacts are development builds, not notarized installers.
 
@@ -29,11 +29,22 @@ That's it. Levels are remembered. **… → Launch at login** is optional.
 ## What it does
 
 - **Per-app volume and mute.** Quiet a browser without quieting your music. Recognizable helper processes share their app's slider.
-- **Master volume.** Controls your current output device's system volume.
+- **Master volume.** Controls your current output device's system volume. The menu bar speaker shows mute and volume level, with the exact percentage and output in its tooltip.
+- **Output picker.** Open **Devices** or click the output name. Switch connected speakers, headphones, AirPods, USB interfaces, and available AirPlay outputs. Star favorites to keep them first.
+- **Independent microphone picker.** Keep headphones as output while selecting a different system input. Bluetooth users get a shortcut to the Mac microphone.
+- **Device details.** See connection type, sample rate, and channels.
 - **Set it and forget it.** App levels persist and apply when audio starts.
 - **Find anything.** Filter to Playing, search app names or process IDs, or show background processes from the menu.
 - **Instant bypass.** Switch **Mixer** off to restore normal app audio while keeping saved levels. Quitting also releases every app route.
 - **Local audio only.** No microphone capture, saved audio, telemetry, or network requests.
+
+## Devices
+
+Connect your device in macOS first, then choose **Devices → Sound output**. The checkmark follows the actual system output, including changes made outside VolumeBar. Favorites are remembered by device identity and never switch audio automatically. The destination keeps its own volume; VolumeBar does not copy the old device's level.
+
+The microphone menu changes the system default input without recording it. Apps with an explicit microphone choice may ignore that default. Using a Bluetooth microphone can reduce playback quality, so choosing the Mac microphone can help when listening through AirPods.
+
+AirPods work as connected Bluetooth headphones in the picker. This release has no AirPods-specific controls: no battery readings, noise cancellation, spatial audio, or connect/disconnect actions. Device discovery uses public Core Audio APIs without private Bluetooth hooks, scanners, background helper processes, or added dependencies. Devices appear when macOS makes them available as audio endpoints.
 
 ## Good to know
 

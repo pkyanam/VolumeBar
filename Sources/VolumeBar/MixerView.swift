@@ -4,14 +4,22 @@ import ServiceManagement
 struct MixerView: View {
     @ObservedObject var model: MixerModel
     @AppStorage("OnboardingComplete") private var onboardingComplete = false
+    @State private var showingDevices = false
     private let accent = Color(red: 0.12, green: 0.68, blue: 0.55)
     var body: some View {
         VStack(spacing: 0) {
             header
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 masterCard
                 if !onboardingComplete {
                     onboardingCard.frame(maxHeight: .infinity)
+                } else {
+                Picker("Mixer section", selection: $showingDevices) {
+                    Text("Applications").tag(false)
+                    Text("Devices").tag(true)
+                }.pickerStyle(.segmented).labelsHidden()
+                if showingDevices {
+                    DevicesView(model: model, catalog: model.devices)
                 } else {
                 appsHeader
                 if model.apps.isEmpty {
@@ -30,6 +38,7 @@ struct MixerView: View {
                     }
                     .frame(maxHeight: .infinity)
                     .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+                }
                 }
                 }
                 if let notice = model.notice {
@@ -67,7 +76,7 @@ struct MixerView: View {
     }
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "slider.vertical.3")
+            Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 21, weight: .semibold))
                 .foregroundStyle(accent)
                 .frame(width: 38, height: 38)
@@ -112,7 +121,16 @@ struct MixerView: View {
                 Image(systemName: "hifispeaker.fill").foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Master volume").font(.system(size: 13, weight: .semibold))
-                    Text(model.output?.name ?? "No output device").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    Button {
+                        onboardingComplete = true
+                        showingDevices = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(model.output?.name ?? "Choose an output").lineLimit(1)
+                            Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                        }.font(.system(size: 11))
+                    }.buttonStyle(.plain).foregroundStyle(accent)
+                        .accessibilityLabel("Choose sound output")
                 }
                 Spacer()
                 Text(model.canSetMaster ? "\(Int((model.masterVolume * 100).rounded()))%" : "Fixed")

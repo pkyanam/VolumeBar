@@ -11,6 +11,7 @@ let package = Package(
             .linkedFramework("AppKit"), .linkedFramework("SwiftUI"),
             .linkedFramework("CoreAudio"), .linkedFramework("AVFoundation")
         ]),
-        .testTarget(name: "AudioDSPTests", dependencies: ["AudioDSP"])
+        .testTarget(name: "AudioDSPTests", dependencies: ["AudioDSP"]),
+        .testTarget(name: "DeviceTests", dependencies: ["VolumeBar"])
     ]
 )

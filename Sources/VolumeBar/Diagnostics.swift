@@ -10,6 +10,10 @@ enum Diagnostics {
         let result: [String: Any] = [
             "os": ProcessInfo.processInfo.operatingSystemVersionString,
             "output": device.map { ["id": $0.id, "name": $0.name, "uid": $0.uid, "channels": $0.channels, "sampleRate": $0.sampleRate, "volume": $0.volume as Any] } ?? [:],
+            "inputID": (try? HAL.read(HAL.system, kAudioHardwarePropertyDefaultInputDevice, default: AudioObjectID(0))) ?? 0,
+            "devices": HAL.objects(HAL.system, kAudioHardwarePropertyDevices).compactMap(AudioEndpoint.read).map {
+                ["id": $0.id, "uid": $0.uid, "name": $0.name, "kind": $0.kind, "canOutput": $0.canOutput, "canInput": $0.canInput] as [String: Any]
+            },
             "audioClients": AudioClient.all().map { ["id": $0.id, "pid": $0.pid, "bundleID": $0.bundleID, "running": $0.running, "devices": $0.outputDevices] }
         ]
         if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]), let string = String(data: data, encoding: .utf8) { print(string) }

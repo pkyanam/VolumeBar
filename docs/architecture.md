@@ -11,3 +11,14 @@ Swift performs lifecycle operations outside the callback. Routes stop on bypass,
 No driver, kernel extension, privileged helper, microphone permission, default-device replacement, or audio-service restart is used. Audio is never saved or transmitted. Master volume uses the physical device's normal volume property and is independent of mixer bypass.
 
 See Apple's [Core Audio taps sample](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps).
+
+
+## Device selection (0.3)
+
+`AudioDeviceCatalog` listens to Core Audio device-list/default-device notifications and per-device format, volume, mute, and availability changes. Events coalesce over 80 ms. Device enumeration adds no polling timer or Bluetooth scans; the existing mixer reconciliation timer remains. Private VolumeBar aggregate routes are excluded. Shutdown removes listeners and cancels pending refreshes.
+
+`AudioDeviceRouter` re-reads the selected HAL ID and checks its persistent UID and direction capability before writing the system default. Selecting the current device is a no-op. Input selection writes only the default-input property; output selection leaves the system alert output and destination volume alone. Existing mixer sessions stop before changes and reconcile against the observed output afterward, including failed switches. Format/default changes caused by external apps also rebuild routes through the existing reconciliation path.
+
+Favorites store UIDs, not transient HAL IDs. They affect sorting only. AirPods are ordinary available Core Audio endpoints with the same controls as other Bluetooth headphones. No battery, ANC, or private Bluetooth APIs are used. Input selection does not open or capture a microphone.
+
+The menu bar observes published master state and only redraws when its displayed label changes. Unit tests inject device reads/writes to exercise switching failures without changing test-machine hardware.
